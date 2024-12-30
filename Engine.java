@@ -132,7 +132,7 @@ public class Engine {
         }
     }
 
-    public MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta, int cutoff, int depth, boolean isCancelled){
+    public MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta, int cutoff, int depth){
 
         //Only return the position if it has been evaluated until cutoff
         if(transposition_table.containsKey(board.getZobristKey())
@@ -159,7 +159,7 @@ public class Engine {
             return new MinimaxInfo(0,null);
         }
 
-        else if(depth == cutoff || isCancelled){
+        else if(depth == cutoff){
             int heuristic = QSearch(board,alpha,beta);
             // Remember, we won't ever need to use this minimax object
             // we only care about getting the Q Search running and getting the evals back to the nodes
@@ -172,7 +172,7 @@ public class Engine {
             List<Move> best_line = new ArrayList<>();
             for(Move action : actions(board)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,cutoff,depth+1, isCancelled);
+                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,cutoff,depth+1);
                 // A bit counter-intuitive (bcs recursion...) but the Q Search eval is used here and propagated up the tree
                 int value2 = child_info.state_value;
                 board.undoMove();
@@ -201,7 +201,7 @@ public class Engine {
             List<Move> best_line = new ArrayList<>();
             for(Move action : actions(board)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,cutoff,depth+1, isCancelled);
+                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,cutoff,depth+1);
                 int value2 = child_info.state_value;
                 board.undoMove();
                 if(value2 < value){
