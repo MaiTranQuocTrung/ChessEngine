@@ -1,7 +1,8 @@
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
-
+import org.apache.commons.lang3.time.StopWatch;
+import org.apache.commons.lang3.time.StopWatch;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -132,16 +133,9 @@ public class Engine {
         }
     }
 
-    public MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta, int cutoff, int depth){
-
-        //Only return the position if it has been evaluated until cutoff
-        if(transposition_table.containsKey(board.getZobristKey())
-                && transposition_table.get(board.getZobristKey()).main_line.size() == cutoff){
-
-            return transposition_table.get(board.getZobristKey());
-        }
-
-        else if(board.isMated()){
+    public MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta, int max_depth, int depth){
+        
+        if(board.isMated()){
             // Punish longer mating sequences
             int utils;
             // Black wins
@@ -155,11 +149,17 @@ public class Engine {
             return new MinimaxInfo(utils,null);
         }
 
-        else if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial()){
+        if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
             return new MinimaxInfo(0,null);
         }
+        //Only return the position if it has been evaluated until cutoff
+        if(transposition_table.containsKey(board.getZobristKey())
+                && transposition_table.get(board.getZobristKey()).main_line.size() == max_depth){
 
-        else if(depth == cutoff){
+            return transposition_table.get(board.getZobristKey());
+        }
+
+        else if(depth == max_depth){
             int heuristic = QSearch(board,alpha,beta);
             // Remember, we won't ever need to use this minimax object
             // we only care about getting the Q Search running and getting the evals back to the nodes
@@ -172,7 +172,7 @@ public class Engine {
             List<Move> best_line = new ArrayList<>();
             for(Move action : actions(board)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,cutoff,depth+1);
+                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,max_depth,depth+1);
                 // A bit counter-intuitive (bcs recursion...) but the Q Search eval is used here and propagated up the tree
                 int value2 = child_info.state_value;
                 board.undoMove();
@@ -201,7 +201,7 @@ public class Engine {
             List<Move> best_line = new ArrayList<>();
             for(Move action : actions(board)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,cutoff,depth+1);
+                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,max_depth,depth+1);
                 int value2 = child_info.state_value;
                 board.undoMove();
                 if(value2 < value){
