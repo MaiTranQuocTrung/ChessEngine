@@ -1,2 +1,3 @@
 # ChessEngine
-Personal java chess engine developement
+Personal java chess engine development.
+
