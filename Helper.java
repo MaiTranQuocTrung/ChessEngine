@@ -4,7 +4,9 @@ import com.github.bhlangonijr.chesslib.PieceType;
 import com.github.bhlangonijr.chesslib.Square;
 import com.github.bhlangonijr.chesslib.move.Move;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+
 
 
 public class Helper {
@@ -12,12 +14,15 @@ public class Helper {
     Evaluation evaluation = new Evaluation();
 
     public boolean isCapture(Board board, Move move){
+        Square origin = move.getFrom();
         // What is the square the piece is moving to
         Square destination = move.getTo();
         // get piece at destination square
         Piece destinationPiece = board.getPiece(destination);
+        // get piece at origin
+        Piece originPiece = board.getPiece(origin);
         // If there is nothing at that destination square
-        if (destinationPiece == null || destinationPiece == Piece.NONE) {
+        if (destinationPiece == Piece.NONE || destinationPiece.getPieceSide() == originPiece.getPieceSide()) {
             return false;
         }
         else{
@@ -25,13 +30,31 @@ public class Helper {
         }
     }
 
+    // check if a move is a check
+    public boolean isCheck(Board board, Move move) {
+        board.doMove(move);
+        boolean isCheck = board.isKingAttacked();
+        board.undoMove();
+        return isCheck;
+    }
+
+    // cutoff function
+    public boolean cutoff(int max_depth, int depth, int time,int time_limit, boolean timed){
+        // If the game is timed, keep track of the time remaining
+        if (timed) {
+            return depth == max_depth || time == time_limit;
+        }
+        // Else just search normally till cutoff depth
+        return depth == max_depth;
+    }
+
     // Sorting by MVV-LVA and also promotion/check
-    public List<Move> sortMoves(Board board, List<Move> legalMoves){
+    public List<Move> sortMoves(Board board, List<Move> legalMoves,HashMap<Long, Engine.MinimaxInfo> transposition_table){
         List<MoveInfo> move_scores = new ArrayList<>();
         List<Move> sortedMoves = new ArrayList<>();
 
         for (Move move : legalMoves){
-            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move));
+            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move,transposition_table));
             move_scores.add(moveInfo);
         }
 
@@ -46,7 +69,16 @@ public class Helper {
     }
 
     // Calculating the value of each moves according to MVV-LVA
-    private int calculateMoveValue(Board board, Move move){
+    private int calculateMoveValue(Board board, Move move,HashMap<Long, Engine.MinimaxInfo> transposition_table){
+        //Transposition value
+        int TT_value = 0;
+        if (transposition_table.containsKey(board.getZobristKey())){
+            Engine.MinimaxInfo node = transposition_table.get(board.getZobristKey());
+            Move TT_move = node.move;
+            if (TT_move == move){
+                TT_value = node.state_value;
+            }
+        }
         // Origin square and destination square
         Square origin = move.getFrom();
         Square destination = move.getTo();
@@ -54,7 +86,8 @@ public class Helper {
         Piece originPiece = board.getPiece(origin);
         Piece destinationPiece = board.getPiece(destination);
 
-        if (destinationPiece == null || destinationPiece == Piece.NONE || originPiece == null || originPiece == Piece.NONE){
+        if (destinationPiece == null || destinationPiece == Piece.NONE || originPiece == null || originPiece == Piece.NONE
+        || (originPiece.getPieceSide() == destinationPiece.getPieceSide())){
             return 0;
         }
 
@@ -72,16 +105,7 @@ public class Helper {
         else if (isCheck(board,move)){
             return 200;
         }
-
-        return destination_piece_value - origin_piece_value;
-    }
-
-    // check if a move is a check
-    private boolean isCheck(Board board, Move move) {
-        board.doMove(move);
-        boolean isCheck = board.isKingAttacked();
-        board.undoMove();
-        return isCheck;
+        return destination_piece_value - origin_piece_value + TT_value;
     }
 
     private static class MoveInfo{
