@@ -5,6 +5,7 @@ import com.github.bhlangonijr.chesslib.Square;
 import com.github.bhlangonijr.chesslib.move.Move;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 
@@ -60,18 +61,15 @@ public class Helper {
 
         // sort by biggest to smallest
         move_scores.sort((a,b) -> b.value - a.value);
-
         for (MoveInfo move_info : move_scores) {
             sortedMoves.add(move_info.move);
         }
-
         return sortedMoves;
     }
 
     // Calculating the value of each moves according to MVV-LVA
     private int calculateMoveValue(Board board, Move move,HashMap<Long, Engine.MinimaxInfo> transposition_table){
         //Transposition value
-        int TT_value = 0;
         if (transposition_table.containsKey(board.getZobristKey())){
             Engine.MinimaxInfo node = transposition_table.get(board.getZobristKey());
             Move TT_move = node.move;
@@ -80,15 +78,24 @@ public class Helper {
                 return 800;
             }
         }
+        // If the move is a promotion, it is likely to be very good
+        if (move.getPromotion() != Piece.NONE){
+            return 700;
+        }
+        // If the move is a check it is also likely to be decent
+        else if (isCheck(board,move)){
+            return 200;
+        }
+
+        //MVV-LVA here
         // Origin square and destination square
         Square origin = move.getFrom();
         Square destination = move.getTo();
         // Getting the pieces at origin and destination
         Piece originPiece = board.getPiece(origin);
         Piece destinationPiece = board.getPiece(destination);
-
-        if (destinationPiece == null || destinationPiece == Piece.NONE || originPiece == null || originPiece == Piece.NONE
-        || (originPiece.getPieceSide() == destinationPiece.getPieceSide())){
+        // If its not a capture then we dont have an opinion on it
+        if (destinationPiece == Piece.NONE || originPiece == Piece.NONE || (originPiece.getPieceSide() == destinationPiece.getPieceSide())){
             return 0;
         }
 
@@ -100,14 +107,6 @@ public class Helper {
         int origin_piece_value = evaluation.pieceWorthMg(origin_piece_type);
         int destination_piece_value = evaluation.pieceWorthMg(destination_piece_type);
 
-        // If the move is a promotion, it is likely to be very good
-        if (move.getPromotion() != Piece.NONE){
-            return 700;
-        }
-        // If the move is a check it is also likely to be decent
-        else if (isCheck(board,move)){
-            return 200;
-        }
         return destination_piece_value - origin_piece_value;
     }
 

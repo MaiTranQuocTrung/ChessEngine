@@ -12,7 +12,7 @@ public class Evaluation {
     - Need some endgame mating help (like pushing the enemy king to corners might help to find mate)
      */
     PieceSquareTable piece_table = new PieceSquareTable();
-    private static final int MATE_SCORE = 1000000;
+    private static final int MATE_SCORE = 5000;
     // The game phase is determined by the number of pieces on the board
     private int[] gamePhase(Board board){
         int [] game_phase = new int[2];
@@ -56,7 +56,7 @@ public class Evaluation {
         };
     }
 
-    private int total_pieces_value_mg(Board board){
+    private int totalPiecesValueMg(Board board){
         int white_value = 0;
         int black_value = 0;
 
@@ -85,7 +85,7 @@ public class Evaluation {
         return white_value - black_value;
     }
 
-    private int total_pieces_value_eg(Board board){
+    private int totalPiecesValueEg(Board board){
         int white_value = 0;
         int black_value = 0;
 
@@ -114,7 +114,7 @@ public class Evaluation {
         return white_value - black_value;
     }
 
-    public int positional_value(Board board){
+    public int positionalValue(Board board){
         int position_value_white = 0;
         int position_value_black = 0;
         for (Piece piece : Piece.allPieces){
@@ -146,8 +146,8 @@ public class Evaluation {
         }
         return white_mobility - black_mobility;
     }
-
-    private int utility(Board board){
+    //Since we are evaluating unstable positions I think we should check for mates in case
+    private int checkMate(Board board){
         if (board.isMated()){
             // If it's the player's turn but its mate then the other side wins
             if(board.getSideToMove() == Side.WHITE){
@@ -160,11 +160,10 @@ public class Evaluation {
         return 0;
     }
 
-
     public int eval(Board board){
-        int total_pieces_value = (total_pieces_value_mg(board) * gamePhase(board)[0] +
-                total_pieces_value_eg(board) * gamePhase(board)[1]) / 32;
-        return total_pieces_value + positional_value(board) + (mobilityScore(board) * gamePhase(board)[1]) / 32 + utility(board);
+        int total_pieces_value = (totalPiecesValueMg(board) * gamePhase(board)[0] +
+                totalPiecesValueEg(board) * gamePhase(board)[1]) / 32;
+        return total_pieces_value + positionalValue(board) + (mobilityScore(board) * gamePhase(board)[1]) / 32 + checkMate(board);
     }
 }
 

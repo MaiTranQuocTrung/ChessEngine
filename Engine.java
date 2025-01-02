@@ -1,9 +1,6 @@
 import com.github.bhlangonijr.chesslib.Board;
-import com.github.bhlangonijr.chesslib.Piece;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
-import org.apache.commons.lang3.time.StopWatch;
-import org.apache.commons.lang3.time.StopWatch;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,10 +46,10 @@ public class Engine {
             this.main_line = new ArrayList<>(main_line);
         }
     }
-    /*
+
     public MinimaxInfo Think(Board board,HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta){
         int depth = 1;
-        int max_depth = 6;
+        int max_depth = 5;
         MinimaxInfo best_choice = null;
 
         while (depth <= max_depth) {
@@ -60,11 +57,12 @@ public class Engine {
 
                 MinimaxInfo current_choice = Search(board, transposition_table, alpha, beta, depth, 0);
 
-                // Update the best choice if a full depth or at least depth-1  result was found
-                if (current_choice.main_line.size() >= depth - 1) {
+                // Update the best choice if a full depth was found
+                if (current_choice.main_line.size() == depth) {
                     best_choice = current_choice;
                 }
                 depth++;
+
             } catch (Exception outOfTime) {
                 break;
             }
@@ -72,8 +70,6 @@ public class Engine {
 
         return best_choice;
     }
-     */
-
 
     private List<Move> actions(Board board, HashMap<Long, MinimaxInfo> transposition_table){
         // Sorting by MVV-LVA
@@ -93,7 +89,7 @@ public class Engine {
         return 0;
     }
 
-    // Search through capture moves to give an accurate eval of quiet positions
+    // Search through capture and check moves to give an accurate eval of quiet positions
     private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transposition_table){
         int stand_pat = evaluation.eval(board);
         int bestScore = stand_pat;
@@ -154,7 +150,7 @@ public class Engine {
             return bestScore;
         }
     }
-
+    // Have the search be public for now, but it in private once done with ID
     public MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta, int max_depth, int depth){
 
         if(board.isMated()){
@@ -175,7 +171,7 @@ public class Engine {
             return new MinimaxInfo(0,null);
         }
         //Only return the position if it has been evaluated at least more than the current depth
-        if(transposition_table.containsKey(board.getZobristKey()) && transposition_table.get(board.getZobristKey()).main_line.size() == max_depth - depth){
+        if(transposition_table.containsKey(board.getZobristKey()) && transposition_table.get(board.getZobristKey()).main_line.size() == max_depth){
             return transposition_table.get(board.getZobristKey());
         }
 
