@@ -1,4 +1,5 @@
 import com.github.bhlangonijr.chesslib.Board;
+import com.github.bhlangonijr.chesslib.Piece;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
 import org.apache.commons.lang3.time.StopWatch;
@@ -11,8 +12,7 @@ import java.util.List;
 Search:
 - Alpha beta pruning
 - Transposition table
-- Q search
-- Shortest mating sequence
+- Q search (check + captures)
 - MVV-LVA sorted moves
 Evaluation:
 - Tampered eval
@@ -49,6 +49,31 @@ public class Engine {
             this.main_line = new ArrayList<>(main_line);
         }
     }
+    /*
+    public MinimaxInfo Think(Board board,HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta){
+        int depth = 1;
+        int max_depth = 6;
+        MinimaxInfo best_choice = null;
+
+        while (depth <= max_depth) {
+            try {
+
+                MinimaxInfo current_choice = Search(board, transposition_table, alpha, beta, depth, 0);
+
+                // Update the best choice if a full depth or at least depth-1  result was found
+                if (current_choice.main_line.size() >= depth - 1) {
+                    best_choice = current_choice;
+                }
+                depth++;
+            } catch (Exception outOfTime) {
+                break;
+            }
+        }
+
+        return best_choice;
+    }
+     */
+
 
     private List<Move> actions(Board board, HashMap<Long, MinimaxInfo> transposition_table){
         // Sorting by MVV-LVA
@@ -71,17 +96,17 @@ public class Engine {
     // Search through capture moves to give an accurate eval of quiet positions
     private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transposition_table){
         int stand_pat = evaluation.eval(board);
-        int bestMove = stand_pat;
+        int bestScore = stand_pat;
         int score;
 
         if (board.getSideToMove() == Side.WHITE){
+
             if (stand_pat >= beta){
                 total_prunes++;
                 return stand_pat;
             }
-            if (alpha < stand_pat){
-                alpha = stand_pat;
-            }
+
+           alpha = Math.max(alpha,stand_pat);
 
             for(Move action : actions(board,transposition_table)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
@@ -89,27 +114,25 @@ public class Engine {
                     score = QSearch(board,alpha,beta,transposition_table);
                     board.undoMove();
 
+                    if (score > bestScore){
+                        bestScore = score;
+                        alpha = Math.max(alpha,bestScore);
+                    }
+
                     if (score >= beta){
                         total_prunes++;
                         return score;
                     }
-                    if (score > bestMove){
-                        bestMove = score;
-                    }
-                    if (score > alpha){
-                        alpha = score;
-                    }
                 }
             }
-            return bestMove;
+            return bestScore;
         }
         else{
             if (stand_pat <= alpha){
                 return stand_pat;
             }
-            if (beta > stand_pat){
-                beta = stand_pat;
-            }
+
+            beta = Math.min(beta,stand_pat);
 
             for (Move action : actions(board, transposition_table)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
@@ -117,19 +140,18 @@ public class Engine {
                     score = QSearch(board,alpha,beta, transposition_table);
                     board.undoMove();
 
+                    if (score < bestScore){
+                        bestScore = score;
+                        beta = Math.min(beta, bestScore);
+                    }
+
                     if (score <= alpha){
                         total_prunes++;
                         return score;
                     }
-                    if (score < bestMove){
-                        bestMove = score;
-                    }
-                    if (score < beta){
-                        beta = score;
-                    }
                 }
             }
-            return bestMove;
+            return bestScore;
         }
     }
 
@@ -152,15 +174,13 @@ public class Engine {
         if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
             return new MinimaxInfo(0,null);
         }
-        //Only return the position if it has been evaluated until cutoff
-        if(transposition_table.containsKey(board.getZobristKey())
-                ){
-            //&& transposition_table.get(board.getZobristKey()).main_line.size() == max_depth
+        //Only return the position if it has been evaluated at least more than the current depth
+        if(transposition_table.containsKey(board.getZobristKey()) && transposition_table.get(board.getZobristKey()).main_line.size() == max_depth - depth){
             return transposition_table.get(board.getZobristKey());
         }
 
         else if(depth == max_depth){
-            int heuristic = QSearch(board,alpha,beta, transposition_table);
+            int heuristic = QSearch(board,alpha,beta,transposition_table);
             // Remember, we won't ever need to use this minimax object
             // we only care about getting the Q Search running and getting the evals back to the nodes
             return new MinimaxInfo(heuristic,null);
