@@ -75,8 +75,9 @@ public class Helper {
         if (transposition_table.containsKey(board.getZobristKey())){
             Engine.MinimaxInfo node = transposition_table.get(board.getZobristKey());
             Move TT_move = node.move;
-            if (TT_move == move){
-                TT_value = node.state_value;
+            if (move.equals(TT_move)){
+                // So the move ordering will always evaluate the move from transposition first
+                return 800;
             }
         }
         // Origin square and destination square
@@ -99,13 +100,15 @@ public class Helper {
         int origin_piece_value = evaluation.pieceWorthMg(origin_piece_type);
         int destination_piece_value = evaluation.pieceWorthMg(destination_piece_type);
 
+        // If the move is a promotion, it is likely to be very good
         if (move.getPromotion() != Piece.NONE){
             return 700;
         }
+        // If the move is a check it is also likely to be decent
         else if (isCheck(board,move)){
             return 200;
         }
-        return destination_piece_value - origin_piece_value + TT_value;
+        return destination_piece_value - origin_piece_value;
     }
 
     private static class MoveInfo{
