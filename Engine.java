@@ -8,30 +8,31 @@ import java.util.List;
 /*
 Search:
 - Alpha beta pruning
-- Transposition table
+- Transposition table (move ordering + reuse positions)
 - Q search (check + captures)
 - MVV-LVA sorted moves
+- Iterative deepening
 Evaluation:
-- Tampered eval
+- Tampered eval (Game phase decided by number of pieces on the board)
 - Total material (weighted by number of pieces)
 - Piece square table (weighted by number of pieces)
 - Simple mobility
 
-To do:
-- Iterative deepening!
-- More pruning techniques
+
  */
 
 public class Engine {
     Evaluation evaluation = new Evaluation();
     Helper boardHelper = new Helper();
     private static final int MATE_SCORE = 1000000;
-    int total_prunes;
+    int TOTAL_PRUNES;
 
     public static class MinimaxInfo{
         public int state_value;
         public Move move;
         public List<Move> main_line;
+        public int depth;
+        public FLAG flag;
 
         public MinimaxInfo(int state_value, Move move) {
             this.move = move;
@@ -40,27 +41,23 @@ public class Engine {
         }
 
         // Used to store the line the engine found
-        public MinimaxInfo(int state_value, Move move, List<Move>main_line) {
+        public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag) {
             this.move = move;
             this.state_value = state_value;
             this.main_line = new ArrayList<>(main_line);
+            this.depth = main_line.size();
+            this.flag = flag;
         }
     }
 
-    public MinimaxInfo Think(Board board,HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta){
+    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth){
         int depth = 1;
-        int max_depth = 5;
-        MinimaxInfo best_choice = null;
+        MinimaxInfo bestChoice = null;
 
-        while (depth <= max_depth) {
+        while (depth <= maxDepth) {
             try {
-
-                MinimaxInfo current_choice = Search(board, transposition_table, alpha, beta, depth, 0);
-
-                // Update the best choice if a full depth was found
-                if (current_choice.main_line.size() == depth) {
-                    best_choice = current_choice;
-                }
+                MinimaxInfo current_choice = Search(board, transpositionTable, alpha, beta, depth, 0);
+                bestChoice = current_choice;
                 depth++;
 
             } catch (Exception outOfTime) {
@@ -68,12 +65,12 @@ public class Engine {
             }
         }
 
-        return best_choice;
+        return bestChoice;
     }
 
-    private List<Move> actions(Board board, HashMap<Long, MinimaxInfo> transposition_table){
-        // Sorting by MVV-LVA
-        return boardHelper.sortMoves(board,board.legalMoves(),transposition_table);
+    private List<Move> actions(Board board, HashMap<Long, MinimaxInfo> transpositionTable, int maxDepth){
+        // Sorting by MVV-LVA and TT + checks and promotions
+        return boardHelper.sortMoves(board,board.legalMoves(), transpositionTable, maxDepth);
     }
 
     private int utility(Board board){
@@ -90,7 +87,7 @@ public class Engine {
     }
 
     // Search through capture and check moves to give an accurate eval of quiet positions
-    private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transposition_table){
+    private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transpositionTable, int maxDepth){
         int stand_pat = evaluation.eval(board);
         int bestScore = stand_pat;
         int score;
@@ -98,16 +95,16 @@ public class Engine {
         if (board.getSideToMove() == Side.WHITE){
 
             if (stand_pat >= beta){
-                total_prunes++;
+                TOTAL_PRUNES++;
                 return stand_pat;
             }
 
            alpha = Math.max(alpha,stand_pat);
 
-            for(Move action : actions(board,transposition_table)){
+            for(Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta,transposition_table);
+                    score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
                     board.undoMove();
 
                     if (score > bestScore){
@@ -116,7 +113,7 @@ public class Engine {
                     }
 
                     if (score >= beta){
-                        total_prunes++;
+                        TOTAL_PRUNES++;
                         return score;
                     }
                 }
@@ -130,10 +127,10 @@ public class Engine {
 
             beta = Math.min(beta,stand_pat);
 
-            for (Move action : actions(board, transposition_table)){
+            for (Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta, transposition_table);
+                    score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
                     board.undoMove();
 
                     if (score < bestScore){
@@ -142,7 +139,7 @@ public class Engine {
                     }
 
                     if (score <= alpha){
-                        total_prunes++;
+                        TOTAL_PRUNES++;
                         return score;
                     }
                 }
@@ -150,11 +147,10 @@ public class Engine {
             return bestScore;
         }
     }
-    // Have the search be public for now, but it in private once done with ID
-    public MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transposition_table, int alpha, int beta, int max_depth, int depth){
+
+    private MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth, int depth){
 
         if(board.isMated()){
-            // Punish longer mating sequences
             int utils;
             // Black wins
             if (board.getSideToMove() == Side.WHITE){
@@ -170,73 +166,86 @@ public class Engine {
         if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
             return new MinimaxInfo(0,null);
         }
-        //Only return the position if it has been evaluated at least more than the current depth
-        if(transposition_table.containsKey(board.getZobristKey()) && transposition_table.get(board.getZobristKey()).main_line.size() == max_depth){
-            return transposition_table.get(board.getZobristKey());
+
+        //Change transposition table to return exact but also alpha beta pruning
+        if(transpositionTable.containsKey(board.getZobristKey()) && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
+            MinimaxInfo info = transpositionTable.get(board.getZobristKey());
+            if (info.flag == FLAG.EXACT){
+                return info;
+            }
+            else if (info.flag == FLAG.LOWER){
+                alpha = Math.max(alpha, info.state_value);
+            }
+            else if (info.flag == FLAG.UPPER){
+                beta = Math.min(beta, info.state_value);
+            }
+            if (alpha >= beta){
+                return transpositionTable.get(board.getZobristKey());
+            }
         }
 
-        else if(depth == max_depth){
-            int heuristic = QSearch(board,alpha,beta,transposition_table);
-            // Remember, we won't ever need to use this minimax object
-            // we only care about getting the Q Search running and getting the evals back to the nodes
+        if(depth == maxDepth){
+            int heuristic = QSearch(board,alpha,beta,transpositionTable,maxDepth);
             return new MinimaxInfo(heuristic,null);
         }
 
         else if(board.getSideToMove() == Side.WHITE){
             int value = Integer.MIN_VALUE;
-            Move best_move = null;
-            List<Move> best_line = new ArrayList<>();
-            for(Move action : actions(board,transposition_table)){
+            Move bestMove = null;
+            List<Move> bestLine = new ArrayList<>();
+            for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,max_depth,depth+1);
+                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1);
                 // A bit counter-intuitive (bcs recursion...) but the Q Search eval is used here and propagated up the tree
                 int value2 = child_info.state_value;
                 board.undoMove();
                 if(value2 > value){
                     value = value2;
-                    best_move = action;
+                    bestMove = action;
 
-                    best_line.clear();
-                    best_line.add(action);
-                    best_line.addAll(child_info.main_line);
+                    bestLine.clear();
+                    bestLine.add(action);
+                    bestLine.addAll(child_info.main_line);
 
                     alpha = Math.max(alpha, value);
                 }
                 if(value >= beta){
-                    total_prunes++;
-                    return new MinimaxInfo(value,best_move,best_line);
+                    TOTAL_PRUNES++;
+                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER));
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER);
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,best_move,best_line);
-            transposition_table.put(board.getZobristKey(), info);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT);
+            transpositionTable.put(board.getZobristKey(), info);
             return info;
         }
         else{
             int value = Integer.MAX_VALUE;
-            Move best_move = null;
-            List<Move> best_line = new ArrayList<>();
-            for(Move action : actions(board,transposition_table)){
+            Move bestMove = null;
+            List<Move> bestLine = new ArrayList<>();
+            for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board,transposition_table,alpha,beta,max_depth,depth+1);
+                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1);
                 int value2 = child_info.state_value;
                 board.undoMove();
                 if(value2 < value){
                     value = value2;
-                    best_move = action;
+                    bestMove = action;
 
-                    best_line.clear();
-                    best_line.add(action);
-                    best_line.addAll(child_info.main_line);
+                    bestLine.clear();
+                    bestLine.add(action);
+                    bestLine.addAll(child_info.main_line);
 
                     beta = Math.min(beta,value);
                 }
                 if(value <= alpha){
-                    total_prunes++;
-                    return new MinimaxInfo(value,best_move,best_line);
+                    TOTAL_PRUNES++;
+                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER));
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER);
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,best_move,best_line);
-            transposition_table.put(board.getZobristKey(), info);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT);
+            transpositionTable.put(board.getZobristKey(), info);
             return info;
         }
     }
