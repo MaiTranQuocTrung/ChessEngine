@@ -17,8 +17,6 @@ Evaluation:
 - Total material (weighted by number of pieces)
 - Piece square table (weighted by number of pieces)
 - Simple mobility
-
-
  */
 
 public class Engine {
@@ -41,11 +39,11 @@ public class Engine {
         }
 
         // Used to store the line the engine found
-        public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag) {
+        public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag,int depth) {
             this.move = move;
             this.state_value = state_value;
             this.main_line = new ArrayList<>(main_line);
-            this.depth = main_line.size();
+            this.depth = depth;
             this.flag = flag;
         }
     }
@@ -53,11 +51,11 @@ public class Engine {
     public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth){
         int depth = 1;
         MinimaxInfo bestChoice = null;
-
+        transpositionTable.clear();
         while (depth <= maxDepth) {
             try {
-                MinimaxInfo current_choice = Search(board, transpositionTable, alpha, beta, depth, 0);
-                bestChoice = current_choice;
+                bestChoice = Search(board, transpositionTable, alpha, beta, depth, 0);
+                System.out.println("Depth:"+ depth + " " +bestChoice.main_line);
                 depth++;
 
             } catch (Exception outOfTime) {
@@ -99,7 +97,7 @@ public class Engine {
                 return stand_pat;
             }
 
-           alpha = Math.max(alpha,stand_pat);
+            alpha = Math.max(alpha,stand_pat);
 
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
@@ -180,7 +178,7 @@ public class Engine {
                 beta = Math.min(beta, info.state_value);
             }
             if (alpha >= beta){
-                return transpositionTable.get(board.getZobristKey());
+                return info;
             }
         }
 
@@ -211,11 +209,11 @@ public class Engine {
                 }
                 if(value >= beta){
                     TOTAL_PRUNES++;
-                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER));
-                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER);
+                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth));
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth);
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth);
             transpositionTable.put(board.getZobristKey(), info);
             return info;
         }
@@ -240,11 +238,11 @@ public class Engine {
                 }
                 if(value <= alpha){
                     TOTAL_PRUNES++;
-                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER));
-                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER);
+                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth));
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth);
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth);
             transpositionTable.put(board.getZobristKey(), info);
             return info;
         }
