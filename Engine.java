@@ -51,7 +51,6 @@ public class Engine {
     public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth){
         int depth = 1;
         MinimaxInfo bestChoice = null;
-        transpositionTable.clear();
         while (depth <= maxDepth) {
             try {
                 bestChoice = Search(board, transpositionTable, alpha, beta, depth, 0);
