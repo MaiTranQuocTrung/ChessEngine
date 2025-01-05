@@ -42,7 +42,7 @@ public class Engine {
         public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag,int depth) {
             this.move = move;
             this.state_value = state_value;
-            this.main_line = new ArrayList<>(main_line);
+            this.main_line = main_line;
             this.depth = depth;
             this.flag = flag;
         }
@@ -54,7 +54,6 @@ public class Engine {
         while (depth <= maxDepth) {
             try {
                 bestChoice = Search(board, transpositionTable, alpha, beta, depth, 0);
-                System.out.println("Depth:"+ depth + " " +bestChoice.main_line);
                 depth++;
 
             } catch (Exception outOfTime) {
