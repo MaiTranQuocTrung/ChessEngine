@@ -78,9 +78,9 @@ public class Engine {
         return bestChoice;
     }
 
-    private List<Move> actions(Board board, HashMap<Long, MinimaxInfo> transpositionTable){
+    private List<Move> actions(Board board, HashMap<Long, MinimaxInfo> transpositionTable, int maxDepth){
         // Sorting by MVV-LVA and TT + checks and promotions
-        return boardHelper.sortMoves(board,board.legalMoves(), transpositionTable);
+        return boardHelper.sortMoves(board,board.legalMoves(), transpositionTable, maxDepth);
     }
 
     private int utility(Board board){
@@ -97,7 +97,7 @@ public class Engine {
     }
 
     // Search through capture and check moves to give an accurate eval of quiet positions
-    private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transpositionTable){
+    private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transpositionTable, int maxDepth){
         int stand_pat = evaluation.eval(board);
         int bestScore = stand_pat;
         int score;
@@ -111,10 +111,10 @@ public class Engine {
 
             alpha = Math.max(alpha,stand_pat);
 
-            for(Move action : actions(board, transpositionTable)){
+            for(Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta, transpositionTable);
+                    score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
                     board.undoMove();
 
                     if (score > bestScore){
@@ -137,10 +137,10 @@ public class Engine {
 
             beta = Math.min(beta,stand_pat);
 
-            for (Move action : actions(board, transpositionTable)){
+            for (Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta, transpositionTable);
+                    score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
                     board.undoMove();
 
                     if (score < bestScore){
@@ -199,7 +199,7 @@ public class Engine {
         }
 
         if(depth == maxDepth){
-            int heuristic = QSearch(board,alpha,beta,transpositionTable);
+            int heuristic = QSearch(board,alpha,beta,transpositionTable,maxDepth);
             return new MinimaxInfo(heuristic,null);
         }
 
@@ -207,7 +207,7 @@ public class Engine {
             int value = Integer.MIN_VALUE;
             Move bestMove = null;
             List<Move> bestLine = new ArrayList<>();
-            for(Move action : actions(board, transpositionTable)){
+            for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
                 MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1,timeManager);
                 int value2 = child_info.state_value;
@@ -242,7 +242,7 @@ public class Engine {
             int value = Integer.MAX_VALUE;
             Move bestMove = null;
             List<Move> bestLine = new ArrayList<>();
-            for(Move action : actions(board, transpositionTable)){
+            for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
                 MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1,timeManager);
                 int value2 = child_info.state_value;

@@ -34,12 +34,12 @@ public class Helper {
     }
 
     // Sorting by MVV-LVA and also promotion/check
-    public List<Move> sortMoves(Board board, List<Move> legalMoves, HashMap<Long, Engine.MinimaxInfo> transpositionTable){
+    public List<Move> sortMoves(Board board, List<Move> legalMoves, HashMap<Long, Engine.MinimaxInfo> transpositionTable, int maxDepth){
         List<MoveInfo> move_scores = new ArrayList<>();
         List<Move> sortedMoves = new ArrayList<>();
 
         for (Move move : legalMoves){
-            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move, transpositionTable));
+            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move, transpositionTable, maxDepth));
             move_scores.add(moveInfo);
         }
 
@@ -52,13 +52,17 @@ public class Helper {
     }
 
     // Calculating the value of each moves according to MVV-LVA but checking TT moves first + valuing promotions and checks
-    private int calculateMoveValue(Board board, Move move, HashMap<Long, Engine.MinimaxInfo> transpositionTable){
+    private int calculateMoveValue(Board board, Move move, HashMap<Long, Engine.MinimaxInfo> transpositionTable, int currDepth){
         //Transposition value
         if (transpositionTable.containsKey(board.getZobristKey())){
             Engine.MinimaxInfo node = transpositionTable.get(board.getZobristKey());
             Move TT_move = node.move;
+            if (move.equals(TT_move) && node.depth >= currDepth){
+                // So the move ordering will always evaluate the move from transposition first
+                return 800;
+            }
             // If the move is from a lesser depth then still look at it, though its less important
-            if(move.equals(TT_move)){
+            else if(move.equals(TT_move)){
                 return 500 - node.depth;
             }
         }
