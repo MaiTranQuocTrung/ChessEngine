@@ -19,6 +19,7 @@ Evaluation:
 - Total material (weighted by number of pieces)
 - Piece square table (weighted by number of pieces)
 - Simple mobility
+- Doubled pawns punishment
  */
 
 public class Engine {

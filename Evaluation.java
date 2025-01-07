@@ -1,7 +1,4 @@
-import com.github.bhlangonijr.chesslib.Board;
-import com.github.bhlangonijr.chesslib.Piece;
-import com.github.bhlangonijr.chesslib.PieceType;
-import com.github.bhlangonijr.chesslib.Side;
+import com.github.bhlangonijr.chesslib.*;
 
 
 public class Evaluation {
@@ -136,15 +133,21 @@ public class Evaluation {
     }
 
     private int mobilityScore(Board board){
-        int white_mobility = 0;
-        int black_mobility = 0;
-        if (board.getSideToMove() == Side.WHITE){
-            white_mobility = board.legalMoves().size();
-        }
-        else{
-            black_mobility = board.legalMoves().size();
-        }
-        return white_mobility - black_mobility;
+        Side originalSide = board.getSideToMove();
+
+        // Calculate White mobility
+        board.setSideToMove(Side.WHITE);
+        int white_mobility = board.legalMoves().size();
+
+        // Calculate Black mobility
+        board.setSideToMove(Side.BLACK);
+        int black_mobility = board.legalMoves().size();
+
+        // Restore original side to move
+        board.setSideToMove(originalSide);
+
+        // Dividing by 6 since I don't want the mobility score to be influential
+        return (white_mobility - black_mobility) / 6;
     }
     //Since we are evaluating unstable positions I think we should check for mates in case
     private int checkMate(Board board){
@@ -160,11 +163,39 @@ public class Evaluation {
         return 0;
     }
 
+    private int doubledPawns(Board board){
+        long blackPawnBitboard = board.getBitboard(Piece.BLACK_PAWN);
+        long whitePawnBitboard = board.getBitboard(Piece.WHITE_PAWN);
+        // This value seems good for this engine
+        double penalizeScore = 50;
+        int doubledPawnsWhiteCount = 0;
+        int doubledPawnsBlackCount = 0;
+        // Check each file (a through h)
+        for (int file = 0; file < 8; file++) {
+            // Create a mask for the current file
+            long fileMask = 0x0101010101010101L << file;
+
+            // Count pawns on this file for each color
+            int whitePawnsInFile = Long.bitCount(whitePawnBitboard & fileMask);
+            int blackPawnsInFile = Long.bitCount(blackPawnBitboard & fileMask);
+
+            // If there are 2 or more pawns in a file, add the extras to doubled count
+            if (whitePawnsInFile > 1) {
+                doubledPawnsWhiteCount += (whitePawnsInFile - 1);
+            }
+            if (blackPawnsInFile > 1) {
+                doubledPawnsBlackCount += (blackPawnsInFile - 1);
+            }
+        }
+        // Penalize black and white by the penality value respectively
+        return (int)((doubledPawnsBlackCount - doubledPawnsWhiteCount) * penalizeScore);
+    }
+
     public int eval(Board board){
         int totalPiecesValue = (totalPiecesValueMg(board) * gamePhase(board)[0] +
                 totalPiecesValueEg(board) * gamePhase(board)[1]) / 32;
         int mobilityScore = (mobilityScore(board) * gamePhase(board)[1]) / 32;
-        return totalPiecesValue + positionalValue(board) + mobilityScore + checkMate(board);
+        return totalPiecesValue + positionalValue(board) + mobilityScore + checkMate(board) + doubledPawns(board);
     }
 }
 
