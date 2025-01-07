@@ -1,10 +1,12 @@
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
+
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-
 /*
 Search:
 - Alpha beta pruning
@@ -20,8 +22,8 @@ Evaluation:
  */
 
 public class Engine {
-    Evaluation evaluation = new Evaluation();
-    Helper boardHelper = new Helper();
+    private final Evaluation evaluation = new Evaluation();
+    private final Helper boardHelper = new Helper();
     private static final int MATE_SCORE = 1000000;
     int TOTAL_PRUNES;
 
@@ -48,19 +50,31 @@ public class Engine {
         }
     }
 
-    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth){
+    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta,int maxDepth){
         int depth = 1;
         MinimaxInfo bestChoice = null;
-        while (depth <= maxDepth) {
-            try {
-                bestChoice = Search(board, transpositionTable, alpha, beta, depth, 0);
-                depth++;
+        SearchManager timeManager = new SearchManager(10000);
 
-            } catch (Exception outOfTime) {
+        while (depth <= maxDepth) {
+            if (timeManager.shouldCancel()) {
                 break;
             }
-        }
+            //Starting clock
+            Instant starts = Instant.now();
+            //Running search
+            MinimaxInfo currChoice = Search(board, transpositionTable, alpha, beta, depth, 0,timeManager);
+            //Stop clock
+            Instant end = Instant.now();
+            //print duration of search
+            long timeElapsed = Duration.between(starts,end).toMillis();
+            System.out.println("Depth:"+ depth+" TIME:"+ timeElapsed + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line);
+            //Avoid taking none completed search
+            if (currChoice.move != null){
+                bestChoice = currChoice;
+            }
+            depth++;
 
+        }
         return bestChoice;
     }
 
@@ -144,7 +158,11 @@ public class Engine {
         }
     }
 
-    private MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth, int depth){
+    private MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth, int depth,SearchManager timeManager){
+        //Out of time
+        if (timeManager.shouldCancel()){
+            return new MinimaxInfo(0,null);
+        }
 
         if(board.isMated()){
             int utils;
@@ -164,7 +182,7 @@ public class Engine {
         }
 
         //Change transposition table to return exact but also alpha beta pruning
-        if(transpositionTable.containsKey(board.getZobristKey()) && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
+        else if(transpositionTable.containsKey(board.getZobristKey()) && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
             MinimaxInfo info = transpositionTable.get(board.getZobristKey());
             if (info.flag == FLAG.EXACT){
                 return info;
@@ -191,10 +209,15 @@ public class Engine {
             List<Move> bestLine = new ArrayList<>();
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1);
-                // A bit counter-intuitive (bcs recursion...) but the Q Search eval is used here and propagated up the tree
+                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1,timeManager);
                 int value2 = child_info.state_value;
                 board.undoMove();
+
+                //Out of time, instantly exit the search
+                if (timeManager.shouldCancel()){
+                    return new MinimaxInfo(0,null);
+                }
+
                 if(value2 > value){
                     value = value2;
                     bestMove = action;
@@ -221,9 +244,15 @@ public class Engine {
             List<Move> bestLine = new ArrayList<>();
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1);
+                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1,timeManager);
                 int value2 = child_info.state_value;
                 board.undoMove();
+
+                //Out of time, instantly exit the search
+                if (timeManager.shouldCancel()){
+                    return new MinimaxInfo(0,null);
+                }
+
                 if(value2 < value){
                     value = value2;
                     bestMove = action;
