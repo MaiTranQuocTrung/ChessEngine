@@ -5,7 +5,6 @@ import com.github.bhlangonijr.chesslib.Square;
 import com.github.bhlangonijr.chesslib.move.Move;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 
 
@@ -23,12 +22,7 @@ public class Helper {
         // get piece at origin
         Piece originPiece = board.getPiece(origin);
         // If there is nothing at that destination square
-        if (destinationPiece == Piece.NONE || destinationPiece.getPieceSide() == originPiece.getPieceSide()) {
-            return false;
-        }
-        else{
-            return true;
-        }
+        return destinationPiece != Piece.NONE && destinationPiece.getPieceSide() != originPiece.getPieceSide();
     }
 
     // check if a move is a check
@@ -39,23 +33,13 @@ public class Helper {
         return isCheck;
     }
 
-    // cutoff function
-    public boolean cutoff(int max_depth, int depth, int time,int time_limit, boolean timed){
-        // If the game is timed, keep track of the time remaining
-        if (timed) {
-            return depth == max_depth || time == time_limit;
-        }
-        // Else just search normally till cutoff depth
-        return depth == max_depth;
-    }
-
     // Sorting by MVV-LVA and also promotion/check
-    public List<Move> sortMoves(Board board, List<Move> legalMoves,HashMap<Long, Engine.MinimaxInfo> transposition_table){
+    public List<Move> sortMoves(Board board, List<Move> legalMoves, HashMap<Long, Engine.MinimaxInfo> transpositionTable){
         List<MoveInfo> move_scores = new ArrayList<>();
         List<Move> sortedMoves = new ArrayList<>();
 
         for (Move move : legalMoves){
-            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move,transposition_table));
+            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move, transpositionTable));
             move_scores.add(moveInfo);
         }
 
@@ -67,19 +51,19 @@ public class Helper {
         return sortedMoves;
     }
 
-    // Calculating the value of each moves according to MVV-LVA
-    private int calculateMoveValue(Board board, Move move,HashMap<Long, Engine.MinimaxInfo> transposition_table){
+    // Calculating the value of each moves according to MVV-LVA but checking TT moves first + valuing promotions and checks
+    private int calculateMoveValue(Board board, Move move, HashMap<Long, Engine.MinimaxInfo> transpositionTable){
         //Transposition value
-        if (transposition_table.containsKey(board.getZobristKey())){
-            Engine.MinimaxInfo node = transposition_table.get(board.getZobristKey());
+        if (transpositionTable.containsKey(board.getZobristKey())){
+            Engine.MinimaxInfo node = transpositionTable.get(board.getZobristKey());
             Move TT_move = node.move;
-            if (move.equals(TT_move)){
-                // So the move ordering will always evaluate the move from transposition first
-                return 800;
+            // If the move is from a lesser depth then still look at it, though its less important
+            if(move.equals(TT_move)){
+                return 500 - node.depth;
             }
         }
         // If the move is a promotion, it is likely to be very good
-        if (move.getPromotion() != Piece.NONE){
+        else if (move.getPromotion() != Piece.NONE){
             return 700;
         }
         // If the move is a check it is also likely to be decent

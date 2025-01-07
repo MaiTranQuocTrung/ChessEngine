@@ -161,9 +161,10 @@ public class Evaluation {
     }
 
     public int eval(Board board){
-        int total_pieces_value = (totalPiecesValueMg(board) * gamePhase(board)[0] +
+        int totalPiecesValue = (totalPiecesValueMg(board) * gamePhase(board)[0] +
                 totalPiecesValueEg(board) * gamePhase(board)[1]) / 32;
-        return total_pieces_value + positionalValue(board) + (mobilityScore(board) * gamePhase(board)[1]) / 32 + checkMate(board);
+        int mobilityScore = (mobilityScore(board) * gamePhase(board)[1]) / 32;
+        return totalPiecesValue + positionalValue(board) + mobilityScore + checkMate(board);
     }
 }
 
