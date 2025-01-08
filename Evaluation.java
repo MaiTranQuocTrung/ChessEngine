@@ -1,33 +1,8 @@
 import com.github.bhlangonijr.chesslib.*;
 
-
 public class Evaluation {
-    /*Idea:
-    - Punish pinned pieces
-    - Reward pawns for pushing up
-    - Need a way to emphasize center control so moves like rook b1 does not happen
-    - Need some endgame mating help (like pushing the enemy king to corners might help to find mate)
-     */
     PieceSquareTable piece_table = new PieceSquareTable();
     private static final int MATE_SCORE = 5000;
-    // The game phase is determined by the number of pieces on the board
-    private int[] gamePhase(Board board){
-        int [] game_phase = new int[2];
-        long bitboard = board.getBitboard();
-        int midgame = 0;
-        int endgame;
-        for (int i = 0; i < 64; i++){
-            if ((bitboard & (1L << i)) != 0) {
-                midgame ++;
-            }
-        }
-        endgame = 32 - midgame;
-        //Mid-game phase
-        game_phase[0] = midgame;
-        //End game phase
-        game_phase[1] = endgame;
-        return game_phase;
-    }
 
     public int pieceWorthMg(PieceType pieceType){
         return switch (pieceType) {
@@ -52,63 +27,53 @@ public class Evaluation {
             case null, default -> 0;
         };
     }
-
-    private int totalPiecesValueMg(Board board){
-        int white_value = 0;
-        int black_value = 0;
-
-        for (Piece piece : Piece.allPieces){
-            PieceType pieceType = piece.getPieceType();
-            int reward = pieceWorthMg(pieceType);
-
-            long piece_bitboard = board.getBitboard(piece);
-
-            // the piece is not on the board
-            if (piece_bitboard == 0){
-                continue;
-            }
-
-            for (int i = 0; i < 64; i++){
-                if ((piece_bitboard & (1L << i)) != 0) {
-                    if (piece.getPieceSide() == Side.WHITE){
-                        white_value += reward;
-                    }
-                    else{
-                        black_value += reward;
-                    }
-                }
-            }
-        }
-        return white_value - black_value;
+    // The game phase is determined by the number of pieces on the board
+    public int[] gamePhase(Board board){
+        int [] game_phase = new int[2];
+        long bitboard = board.getBitboard();
+        int midGame = Long.bitCount(bitboard);
+        int endgame = 32 - midGame;
+        //Mid-game phase
+        game_phase[0] = midGame;
+        //End game phase
+        game_phase[1] = endgame;
+        return game_phase;
     }
 
-    private int totalPiecesValueEg(Board board){
-        int white_value = 0;
-        int black_value = 0;
+    private int[] totalPiecesValue(Board board){
+        int [] piecesValues = new int[2];
+        int whiteValueMg = 0;
+        int blackValueMg = 0;
+        int whiteValueEg = 0;
+        int blackValueEg = 0;
 
         for (Piece piece : Piece.allPieces){
             PieceType pieceType = piece.getPieceType();
-            int reward = pieceWorthEg(pieceType);
+            int rewardMg = pieceWorthMg(pieceType);
+            int rewardEg = pieceWorthEg(pieceType);
 
-            long piece_bitboard = board.getBitboard(piece);
+            long pieceBitboard = board.getBitboard(piece);
 
             // the piece is not on the board
-            if (piece_bitboard == 0){
+            if (pieceBitboard == 0){
                 continue;
             }
-
-            for (int i = 0; i < 64; i++){
-                if ((piece_bitboard & (1L << i)) != 0) {
-                    if (piece.getPieceSide() == Side.WHITE){
-                        white_value += reward;
-                    }
-                    else{
-                        black_value += reward;
-                    }
-                }
+            if (piece.getPieceSide() == Side.WHITE){
+                whiteValueMg += rewardMg * Long.bitCount(pieceBitboard);
+                whiteValueEg += rewardEg * Long.bitCount(pieceBitboard);
+            }
+            else{
+                blackValueMg += rewardMg * Long.bitCount(pieceBitboard);
+                blackValueEg += rewardEg * Long.bitCount(pieceBitboard);
             }
         }
-        return white_value - black_value;
+        int valueMg = whiteValueMg - blackValueMg;
+        int valueEg = whiteValueEg - blackValueEg;
+        //Mid game
+        piecesValues[0] = valueMg;
+        //end game
+        piecesValues[1] = valueEg;
+        return  piecesValues;
     }
 
     public int positionalValue(Board board){
@@ -132,22 +97,21 @@ public class Evaluation {
         return position_value_white - position_value_black;
     }
 
-    private int mobilityScore(Board board){
+    private int mobilityScore(Board board) {
         Side originalSide = board.getSideToMove();
+        int currentMobility = board.legalMoves().size();
 
-        // Calculate White mobility
-        board.setSideToMove(Side.WHITE);
-        int white_mobility = board.legalMoves().size();
+        int opponentMobility;
+        if (originalSide == Side.WHITE) {
+            board.setSideToMove(Side.BLACK);
+            opponentMobility = board.legalMoves().size();
+        } else {
+            board.setSideToMove(Side.WHITE);
+            opponentMobility = board.legalMoves().size();
+        }
 
-        // Calculate Black mobility
-        board.setSideToMove(Side.BLACK);
-        int black_mobility = board.legalMoves().size();
-
-        // Restore original side to move
         board.setSideToMove(originalSide);
-
-        // Dividing by 6 since I don't want the mobility score to be influential
-        return (white_mobility - black_mobility) / 6;
+        return (currentMobility - opponentMobility) / 6;
     }
     //Since we are evaluating unstable positions I think we should check for mates in case
     private int checkMate(Board board){
@@ -187,15 +151,51 @@ public class Evaluation {
                 doubledPawnsBlackCount += (blackPawnsInFile - 1);
             }
         }
-        // Penalize black and white by the penality value respectively
+        // Penalize black and white by the penalty value respectively
         return (int)((doubledPawnsBlackCount - doubledPawnsWhiteCount) * penalizeScore);
     }
 
+    private int passedPawns(Board board){
+        long blackPawnBitboard = board.getBitboard(Piece.BLACK_PAWN);
+        long whitePawnBitboard = board.getBitboard(Piece.WHITE_PAWN);
+        int baseReward = 10;
+        int whitePassedPawnValue = 0;
+        int blackPassedPawnValue = 0;
+
+        for (int file = 0; file < 8; file++) {
+            long fileMask = 0x0101010101010101L << file;
+            long fileMaskRight = file < 7 ? fileMask << 1 : 0;
+            long fileMaskLeft = file > 0 ? fileMask >> 1 : 0;
+
+            // Check for passed pawns
+            if ((whitePawnBitboard & fileMask) != 0 &&
+                    (blackPawnBitboard & (fileMask | fileMaskRight | fileMaskLeft)) == 0) {
+                int rank = Long.numberOfTrailingZeros(whitePawnBitboard & fileMask) / 8 + 1;
+                whitePassedPawnValue += rank * baseReward;
+            }
+
+            if ((blackPawnBitboard & fileMask) != 0 &&
+                    (whitePawnBitboard & (fileMask | fileMaskRight | fileMaskLeft)) == 0) {
+                int rank = 8 - Long.numberOfTrailingZeros(Long.highestOneBit(blackPawnBitboard & fileMask)) / 8;
+                blackPassedPawnValue += rank * baseReward;
+            }
+        }
+        return whitePassedPawnValue - blackPassedPawnValue;
+    }
+
     public int eval(Board board){
-        int totalPiecesValue = (totalPiecesValueMg(board) * gamePhase(board)[0] +
-                totalPiecesValueEg(board) * gamePhase(board)[1]) / 32;
-        int mobilityScore = (mobilityScore(board) * gamePhase(board)[1]) / 32;
-        return totalPiecesValue + positionalValue(board) + mobilityScore + checkMate(board) + doubledPawns(board);
+        //Get the game phases
+        int midGame = gamePhase(board)[0];
+        int endGame = gamePhase(board)[1];
+        //Tampered eval
+        int totalPiecesValue = (totalPiecesValue(board)[0] * midGame +
+                totalPiecesValue(board)[1] * endGame) / 32;
+        int mobilityScore = (mobilityScore(board) * endGame) / 32;
+        return totalPiecesValue +
+                positionalValue(board) +
+                mobilityScore + checkMate(board) +
+                doubledPawns(board) +
+                (passedPawns(board) * endGame / 32);
     }
 }
 
