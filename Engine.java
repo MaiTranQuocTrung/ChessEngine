@@ -1,4 +1,5 @@
 import com.github.bhlangonijr.chesslib.Board;
+import com.github.bhlangonijr.chesslib.Piece;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
 
@@ -14,12 +15,14 @@ Search:
 - Q search (check + captures)
 - MVV-LVA sorted moves
 - Iterative deepening (time constraint + reusing TT positions, alpha and beta bounds)
+- Delta pruning
 Evaluation:
 - Tampered eval (Game phase decided by number of pieces on the board)
 - Total material (weighted by number of pieces)
 - Piece square table (weighted by number of pieces)
 - Simple mobility
 - Doubled pawns punishment
+- Reward passed pawns
  */
 
 public class Engine {
@@ -51,12 +54,12 @@ public class Engine {
         }
     }
 
-    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta,int maxDepth){
+    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta){
         int depth = 1;
         MinimaxInfo bestChoice = null;
         SearchManager timeManager = new SearchManager(10000);
 
-        while (depth <= maxDepth) {
+        while (depth <= 64) {
             if (timeManager.shouldCancel()) {
                 break;
             }
@@ -103,6 +106,9 @@ public class Engine {
         int bestScore = stand_pat;
         int score;
 
+        //Delta score
+        int delta = 975;
+
         if (board.getSideToMove() == Side.WHITE){
 
             if (stand_pat >= beta){
@@ -114,8 +120,17 @@ public class Engine {
 
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
+                    // delta pruning
+                    if (action.getPromotion() != Piece.NONE){
+                        delta += 775;
+                    }
+                    //If adding delta (queen value) to eval is still less than alpha, this is hopeless
+                    if (stand_pat + delta < alpha && evaluation.gamePhase(board)[1] <= 20) {
+                        continue;
+                    }
+
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
+                    score = QSearch(board,alpha,beta,transpositionTable,maxDepth);
                     board.undoMove();
 
                     if (score > bestScore){
@@ -140,6 +155,15 @@ public class Engine {
 
             for (Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
+                    //Delta pruning
+                    if (action.getPromotion() != Piece.NONE){
+                        delta += 775;
+                    }
+                    // If "adding" a queen value is still bad, then this is hopeless
+                    if (stand_pat - delta > beta && evaluation.gamePhase(board)[1] <= 20) {
+                        continue;
+                    }
+
                     board.doMove(action);
                     score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
                     board.undoMove();
@@ -210,7 +234,7 @@ public class Engine {
             List<Move> bestLine = new ArrayList<>();
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1,timeManager);
+                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth + 1 ,timeManager);
                 int value2 = child_info.state_value;
                 board.undoMove();
 
@@ -245,7 +269,7 @@ public class Engine {
             List<Move> bestLine = new ArrayList<>();
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 board.doMove(action);
-                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth+1,timeManager);
+                MinimaxInfo child_info = Search(board, transpositionTable,alpha,beta, maxDepth,depth + 1 ,timeManager);
                 int value2 = child_info.state_value;
                 board.undoMove();
 
