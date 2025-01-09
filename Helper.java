@@ -10,7 +10,6 @@ import java.util.List;
 
 
 public class Helper {
-
     Evaluation evaluation = new Evaluation();
 
     public boolean isCapture(Board board, Move move){
@@ -83,7 +82,7 @@ public class Helper {
         Piece originPiece = board.getPiece(origin);
         Piece destinationPiece = board.getPiece(destination);
         // If its not a capture then we dont have an opinion on it
-        if (destinationPiece == Piece.NONE || originPiece == Piece.NONE || (originPiece.getPieceSide() == destinationPiece.getPieceSide())){
+        if (!isCapture(board,move)){
             return 0;
         }
 
