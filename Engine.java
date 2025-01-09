@@ -1,5 +1,4 @@
 import com.github.bhlangonijr.chesslib.Board;
-import com.github.bhlangonijr.chesslib.Piece;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
 
@@ -54,11 +53,13 @@ public class Engine {
         }
     }
 
-    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta){
+    public MinimaxInfo Think(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, long searchTime){
         int depth = 1;
         MinimaxInfo bestChoice = null;
-        SearchManager timeManager = new SearchManager(10000);
-
+        int bestChoiceDepth = 1;
+        SearchManager timeManager = new SearchManager(searchTime);
+        // I have to clear the TT because its causing really bad miss evaluations
+        transpositionTable.clear();
         while (depth <= 64) {
             if (timeManager.shouldCancel()) {
                 break;
@@ -71,10 +72,12 @@ public class Engine {
             Instant end = Instant.now();
             //print duration of search
             long timeElapsed = Duration.between(starts,end).toMillis();
-            System.out.println("Depth:"+ depth+" TIME:"+ timeElapsed + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line);
+            System.out.println("//NEWEST VERSION:1.1// Depth:"+ depth+" TIME:"+ timeElapsed + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth);
             //Avoid taking none completed search
-            if (currChoice.move != null){
+            //If at depth 1 we have a cached depth of 7 and then at depth 2 we re-search. If we run out of time use the cached result at depth 1
+            if (currChoice.move != null && bestChoiceDepth <= currChoice.depth ){
                 bestChoice = currChoice;
+                bestChoiceDepth = bestChoice.depth;
             }
             depth++;
 
@@ -104,10 +107,6 @@ public class Engine {
     private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transpositionTable, int maxDepth){
         int stand_pat = evaluation.eval(board);
         int bestScore = stand_pat;
-        int score;
-
-        //Delta score
-        int delta = 975;
 
         if (board.getSideToMove() == Side.WHITE){
 
@@ -120,17 +119,8 @@ public class Engine {
 
             for(Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
-                    // delta pruning
-                    if (action.getPromotion() != Piece.NONE){
-                        delta += 775;
-                    }
-                    //If adding delta (queen value) to eval is still less than alpha, this is hopeless
-                    if (stand_pat + delta < alpha && evaluation.gamePhase(board)[1] <= 20) {
-                        continue;
-                    }
-
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta,transpositionTable,maxDepth);
+                    int score = QSearch(board,alpha,beta,transpositionTable,maxDepth);
                     board.undoMove();
 
                     if (score > bestScore){
@@ -155,17 +145,8 @@ public class Engine {
 
             for (Move action : actions(board, transpositionTable, maxDepth)){
                 if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
-                    //Delta pruning
-                    if (action.getPromotion() != Piece.NONE){
-                        delta += 775;
-                    }
-                    // If "adding" a queen value is still bad, then this is hopeless
-                    if (stand_pat - delta > beta && evaluation.gamePhase(board)[1] <= 20) {
-                        continue;
-                    }
-
                     board.doMove(action);
-                    score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
+                    int score = QSearch(board,alpha,beta, transpositionTable, maxDepth);
                     board.undoMove();
 
                     if (score < bestScore){
@@ -207,8 +188,9 @@ public class Engine {
         }
 
         //Change transposition table to return exact but also alpha beta pruning
-        else if(transpositionTable.containsKey(board.getZobristKey()) && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
+        if(transpositionTable.containsKey(board.getZobristKey()) && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
             MinimaxInfo info = transpositionTable.get(board.getZobristKey());
+            Side currSide = board.getSideToMove();
             if (info.flag == FLAG.EXACT){
                 return info;
             }
@@ -218,7 +200,10 @@ public class Engine {
             else if (info.flag == FLAG.UPPER){
                 beta = Math.min(beta, info.state_value);
             }
-            if (alpha >= beta){
+            if (currSide == Side.WHITE && info.state_value >= beta){
+                return info;
+            }
+            if (currSide == Side.BLACK && info.state_value <= alpha){
                 return info;
             }
         }
