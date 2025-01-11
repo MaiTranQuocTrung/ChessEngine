@@ -5,11 +5,11 @@ A personal deep dive into chess programming. King Bob IV is written to be readab
 ## Features
 
 ### Search
-- **Alpha-beta pruning**: Efficient pruning of the search tree to focus on promising moves.
-- **Transposition table**: Implements move ordering and reuses previously evaluated positions.
-- **Quiescence search**: Evaluates positions involving checks and captures to avoid the horizon effect.
+- **Alpha-beta pruning**
+- **Transposition table (reuse values from ID and move ordering)**
+- **Quiescence search (both checks and captures)**
 - **MVV-LVA sorted moves**: Most Valuable Victim - Least Valuable Attacker sorting for better move selection.
-- **Iterative deepening**: Gradually increases search depth, refining results.
+- **Iterative deepening**
 
 ### Evaluation
 - **Tampered evaluation**: Game phase determined by the number of pieces remaining on the board.
