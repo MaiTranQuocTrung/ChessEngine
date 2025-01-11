@@ -1,6 +1,6 @@
 # ChessEngine (King Bob IV)
 
-Personal Java chess engine development.
+A personal deep dive into chess programming. King Bob IV is written to be readable for future more complex implementations.
 
 ## Features
 
