@@ -14,7 +14,6 @@ Search:
 - Q search (check + captures)
 - MVV-LVA sorted moves
 - Iterative deepening (time constraint + reusing TT positions, alpha and beta bounds)
-- Delta pruning
 Evaluation:
 - Tampered eval (Game phase decided by number of pieces on the board)
 - Total material (weighted by number of pieces)
@@ -29,6 +28,7 @@ public class Engine {
     private final Helper boardHelper = new Helper();
     private static final int MATE_SCORE = 1000000;
     int TOTAL_PRUNES;
+    int TOTAL_NODES;
 
     public static class MinimaxInfo{
         public int state_value;
@@ -58,12 +58,11 @@ public class Engine {
         MinimaxInfo bestChoice = null;
         int bestChoiceDepth = 1;
         SearchManager timeManager = new SearchManager(searchTime);
-        // I have to clear the TT because its causing really bad miss evaluations
-        transpositionTable.clear();
         while (depth <= 64) {
             if (timeManager.shouldCancel()) {
                 break;
             }
+            TOTAL_NODES = 0;
             //Starting clock
             Instant starts = Instant.now();
             //Running search
@@ -72,7 +71,8 @@ public class Engine {
             Instant end = Instant.now();
             //print duration of search
             long timeElapsed = Duration.between(starts,end).toMillis();
-            System.out.println("//NEWEST VERSION:1.1// Depth:"+ depth+" TIME:"+ timeElapsed + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth);
+            long nps = (long)TOTAL_NODES/(timeElapsed/1000 + 1);
+            System.out.println("//NEWEST VERSION:1.3.1// Depth:"+ depth+" TIME:" + timeElapsed + " NPS:" + nps + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth);
             //Avoid taking none completed search
             //If at depth 1 we have a cached depth of 7 and then at depth 2 we re-search. If we run out of time use the cached result at depth 1
             if (currChoice.move != null && bestChoiceDepth <= currChoice.depth ){
@@ -82,6 +82,7 @@ public class Engine {
             depth++;
 
         }
+        // ADD A MOD TO MINIMAXINFO AND TRABSPO TABLE HERE TO TRACK POSITION FREQ
         return bestChoice;
     }
 
@@ -105,6 +106,7 @@ public class Engine {
 
     // Search through capture and check moves to give an accurate eval of quiet positions
     private int QSearch(Board board, int alpha, int beta, HashMap<Long, MinimaxInfo> transpositionTable, int maxDepth){
+        TOTAL_NODES++;
         int stand_pat = evaluation.eval(board);
         int bestScore = stand_pat;
 
@@ -166,11 +168,12 @@ public class Engine {
 
     private MinimaxInfo Search(Board board, HashMap<Long,MinimaxInfo> transpositionTable, int alpha, int beta, int maxDepth, int depth,SearchManager timeManager){
         //Out of time
+        TOTAL_NODES++;
         if (timeManager.shouldCancel()){
             return new MinimaxInfo(0,null);
         }
 
-        if(board.isMated()){
+        else if(board.isMated()){
             int utils;
             // Black wins
             if (board.getSideToMove() == Side.WHITE){
@@ -180,15 +183,18 @@ public class Engine {
             else{
                 utils = utility(board)  - depth;
             }
+            transpositionTable.put(board.getZobristKey(),new MinimaxInfo(utils,null));
             return new MinimaxInfo(utils,null);
         }
 
-        if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
+        else if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
+            transpositionTable.put(board.getZobristKey(),new MinimaxInfo(0,null));
             return new MinimaxInfo(0,null);
         }
 
         //Change transposition table to return exact but also alpha beta pruning
-        if(transpositionTable.containsKey(board.getZobristKey()) && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
+        else if(transpositionTable.containsKey(board.getZobristKey())
+                && transpositionTable.get(board.getZobristKey()).depth >= maxDepth - depth){
             MinimaxInfo info = transpositionTable.get(board.getZobristKey());
             Side currSide = board.getSideToMove();
             if (info.flag == FLAG.EXACT){
@@ -210,6 +216,7 @@ public class Engine {
 
         if(depth == maxDepth){
             int heuristic = QSearch(board,alpha,beta,transpositionTable,maxDepth);
+            transpositionTable.put(board.getZobristKey(),new MinimaxInfo(heuristic,null));
             return new MinimaxInfo(heuristic,null);
         }
 
