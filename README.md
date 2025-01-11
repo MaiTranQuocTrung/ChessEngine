@@ -1,15 +1,20 @@
-# ChessEngine(King Bob IV)
-Personal java chess engine development.
+# ChessEngine (King Bob IV)
 
-**Features:**
-*Search:*
-- Alpha beta pruning
-- Transposition table (move ordering + reuse positions)
-- Q search (check + captures)
-- MVV-LVA sorted moves
-- Iterative deepening
-*Evaluation:*
-- Tampered eval (Game phase decided by number of pieces on the board)
-- Total material (weighted by number of pieces)
-- Piece square table (weighted by number of pieces)
-- Simple mobility
+Personal Java chess engine development.
+
+## Features
+
+### Search
+- **Alpha-beta pruning**: Efficient pruning of the search tree to focus on promising moves.
+- **Transposition table**: Implements move ordering and reuses previously evaluated positions.
+- **Quiescence search**: Evaluates positions involving checks and captures to avoid the horizon effect.
+- **MVV-LVA sorted moves**: Most Valuable Victim - Least Valuable Attacker sorting for better move selection.
+- **Iterative deepening**: Gradually increases search depth, refining results.
+
+### Evaluation
+- **Tampered evaluation**: Game phase determined by the number of pieces remaining on the board.
+- **Total material**: Weights positions based on the remaining pieces.
+- **Piece-square table**: Evaluates piece positions using weighted tables, influenced by the number of pieces.
+- **Simple mobility**: Considers the number of legal moves available for each piece.
+
+
