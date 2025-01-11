@@ -8,7 +8,7 @@ A personal deep dive into chess programming. King Bob IV is written to be readab
 - **Alpha-beta pruning**
 - **Transposition table (reuse values from ID and move ordering)**
 - **Quiescence search (both checks and captures)**
-- **MVV-LVA sorted moves**: Most Valuable Victim - Least Valuable Attacker sorting for better move selection.
+- *MVV-LVA sorted moves*
 - **Iterative deepening**
 
 ### Evaluation
