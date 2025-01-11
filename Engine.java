@@ -1,12 +1,12 @@
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.Side;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+
 /*
 Search:
 - Alpha beta pruning
@@ -36,6 +36,7 @@ public class Engine {
         public List<Move> main_line;
         public int depth;
         public FLAG flag;
+        public int frequency;
 
         public MinimaxInfo(int state_value, Move move) {
             this.move = move;
@@ -44,12 +45,13 @@ public class Engine {
         }
 
         // Used to store the line the engine found
-        public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag,int depth) {
+        public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag,int depth,int frequency) {
             this.move = move;
             this.state_value = state_value;
             this.main_line = main_line;
             this.depth = depth;
             this.flag = flag;
+            this.frequency = frequency;
         }
     }
 
@@ -72,7 +74,7 @@ public class Engine {
             //print duration of search
             long timeElapsed = Duration.between(starts,end).toMillis();
             long nps = (long)TOTAL_NODES/(timeElapsed/1000 + 1);
-            System.out.println("//NEWEST VERSION:1.3.1// Depth:"+ depth+" TIME:" + timeElapsed + " NPS:" + nps + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth);
+            System.out.println("//NEWEST VERSION:1.3.2 [RP checker]// Depth:"+ depth+" TIME:" + timeElapsed + " NPS:" + nps + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth);
             //Avoid taking none completed search
             //If at depth 1 we have a cached depth of 7 and then at depth 2 we re-search. If we run out of time use the cached result at depth 1
             if (currChoice.move != null && bestChoiceDepth <= currChoice.depth ){
@@ -82,7 +84,9 @@ public class Engine {
             depth++;
 
         }
-        // ADD A MOD TO MINIMAXINFO AND TRABSPO TABLE HERE TO TRACK POSITION FREQ
+        if (transpositionTable.containsKey(board.getZobristKey())){
+            transpositionTable.get(board.getZobristKey()).frequency += 1;
+        }
         return bestChoice;
     }
 
@@ -187,6 +191,13 @@ public class Engine {
             return new MinimaxInfo(utils,null);
         }
 
+        // checking for repetition
+        else if(transpositionTable.containsKey(board.getZobristKey())){
+            if(transpositionTable.get(board.getZobristKey()).frequency >= 2){
+                return new MinimaxInfo(0,null);
+            }
+        }
+
         else if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
             transpositionTable.put(board.getZobristKey(),new MinimaxInfo(0,null));
             return new MinimaxInfo(0,null);
@@ -247,11 +258,11 @@ public class Engine {
                 }
                 if(value >= beta){
                     TOTAL_PRUNES++;
-                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth));
-                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth);
+                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth,1));
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth,0);
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth,0);
             transpositionTable.put(board.getZobristKey(), info);
             return info;
         }
@@ -282,11 +293,11 @@ public class Engine {
                 }
                 if(value <= alpha){
                     TOTAL_PRUNES++;
-                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth));
-                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth);
+                    transpositionTable.put(board.getZobristKey(), new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth,1));
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth,0);
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth,0);
             transpositionTable.put(board.getZobristKey(), info);
             return info;
         }
