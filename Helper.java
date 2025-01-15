@@ -3,6 +3,7 @@ import com.github.bhlangonijr.chesslib.Piece;
 import com.github.bhlangonijr.chesslib.PieceType;
 import com.github.bhlangonijr.chesslib.Square;
 import com.github.bhlangonijr.chesslib.move.Move;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +34,7 @@ public class Helper {
     }
 
     // Sorting by MVV-LVA and also promotion/check
-    public List<Move> sortMoves(Board board, List<Move> legalMoves, HashMap<Long, Engine.MinimaxInfo> transpositionTable, int maxDepth){
+    public List<Move> sortMoves(Board board, List<Move> legalMoves, TranspositionTable transpositionTable, int maxDepth){
         List<MoveInfo> move_scores = new ArrayList<>();
         List<Move> sortedMoves = new ArrayList<>();
 
@@ -51,18 +52,18 @@ public class Helper {
     }
 
     // Calculating the value of each moves according to MVV-LVA but checking TT moves first + valuing promotions and checks
-    private int calculateMoveValue(Board board, Move move, HashMap<Long, Engine.MinimaxInfo> transpositionTable, int currDepth){
+    private int calculateMoveValue(Board board, Move move, TranspositionTable transpositionTable, int currDepth){
         //Transposition value
-        if (transpositionTable.containsKey(board.getZobristKey())){
-            Engine.MinimaxInfo node = transpositionTable.get(board.getZobristKey());
-            Move TT_move = node.move;
-            if (move.equals(TT_move) && node.depth >= currDepth){
+        if (transpositionTable.getEntry(board.getZobristKey()) != null){
+            TranspositionTable.Entry entry = transpositionTable.getEntry(board.getZobristKey());
+            Move TT_move = entry.move;
+            if (move.equals(TT_move) && entry.depth >= currDepth){
                 // So the move ordering will always evaluate the move from transposition first
                 return 800;
             }
             // If the move is from a lesser depth then still look at it, though its less important
             else if(move.equals(TT_move)){
-                return 500 - node.depth;
+                return 500 + entry.depth;
             }
         }
         // If the move is a promotion, it is likely to be very good
@@ -93,7 +94,6 @@ public class Helper {
         // Getting the values of attacker and victim
         int origin_piece_value = evaluation.pieceWorthMg(origin_piece_type);
         int destination_piece_value = evaluation.pieceWorthMg(destination_piece_type);
-
         return destination_piece_value - origin_piece_value;
     }
 
