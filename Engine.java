@@ -30,12 +30,14 @@ public class Engine {
     private static final int MATE_SCORE = 1000000;
     int TOTAL_PRUNES;
     int TOTAL_NODES;
+    int currAge = 0;
 
     public static class MinimaxInfo{
         public int state_value;
         public Move move;
         public List<Move> main_line;
         public int depth;
+        public int age;
         public FLAG flag;
 
         public MinimaxInfo(int state_value, Move move) {
@@ -45,20 +47,30 @@ public class Engine {
         }
 
         // Used to store the line the engine found
-        public MinimaxInfo(int state_value, Move move, List<Move>main_line,FLAG flag,int depth) {
+        public MinimaxInfo(int state_value, Move move, List<Move>main_line, FLAG flag, int depth, int age) {
             this.move = move;
             this.state_value = state_value;
             this.main_line = main_line;
             this.depth = depth;
             this.flag = flag;
+            this.age = age;
         }
     }
 
     public MinimaxInfo Think(Board board, int alpha, int beta, long searchTime){
+        // Parameters
         int depth = 1;
         MinimaxInfo bestChoice = null;
         int bestChoiceDepth = 1;
+        // Time manager class
         SearchManager timeManager = new SearchManager(searchTime);
+        // We have to reset TT if it overflows
+        if (TT.getCapacity() >= 100){
+            TT.clear();
+        }
+        // Age increments
+        TT.incrementAge();
+        currAge++;
         while (depth <= 64) {
             if (timeManager.shouldCancel()) {
                 break;
@@ -73,7 +85,7 @@ public class Engine {
             //print duration of search
             long timeElapsed = Duration.between(starts,end).toMillis();
             long nps = (long)TOTAL_NODES/(timeElapsed/1000 + 1);
-            System.out.println("//NEWEST VERSION:1.3.2[TT fix]// Depth:"+ depth+" TIME:" + timeElapsed + " NPS:" + nps + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth + "");
+            System.out.println("//NEWEST VERSION:1.4// Depth:"+ depth+" TIME:" + timeElapsed + " NPS:" + nps + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth + " Age of move: " + currChoice.age + " TT capacity: " + TT.getCapacity());
             //Avoid taking none completed search
             //If at depth 1 we have a cached depth of 7 and then at depth 2 we re-search. If we run out of time use the cached result at depth 1
             if (currChoice.move != null && bestChoiceDepth <= currChoice.depth ){
@@ -190,14 +202,15 @@ public class Engine {
             return new MinimaxInfo(utils,null);
         }
 
-        else if (board.isDraw() || board.isStaleMate() || board.isInsufficientMaterial() || board.isRepetition()){
+        else if (board.isDraw()){
             return new MinimaxInfo(0,null);
         }
 
         else if (TT.containsKey(board.getZobristKey())) {
             TranspositionTable.Entry entry = TT.getEntry(board.getZobristKey());
 
-            if (entry != null && entry.depth >= maxDepth - depth) {
+            int entryAge = entry.age;
+            if (entry.depth >= maxDepth - depth && Math.abs(TT.getCurrentAge() - entryAge) <= 2) {
                 Side currSide = board.getSideToMove();
 
                 // Extract values from the TT entry
@@ -208,7 +221,7 @@ public class Engine {
                 int entryDepth = entry.depth;
 
                 // Construct the MinimaxInfo object
-                MinimaxInfo info = new MinimaxInfo(entryValue, entryMove, entryLine, entryFlag, entryDepth);
+                MinimaxInfo info = new MinimaxInfo(entryValue, entryMove, entryLine, entryFlag, entryDepth, entryAge);
 
                 // Evaluate based on the flag
                 if (entryFlag == FLAG.EXACT) {
@@ -259,12 +272,12 @@ public class Engine {
                 }
                 if(value >= beta){
                     TOTAL_PRUNES++;
-                    TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.LOWER,bestMove,bestLine);
-                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth);
+                    TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.LOWER,bestMove,bestLine,TT.getCurrentAge());
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.LOWER,maxDepth - depth, TT.getCurrentAge());
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth);
-            TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.EXACT,bestMove,bestLine);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth, TT.getCurrentAge());
+            TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.EXACT,bestMove,bestLine,TT.getCurrentAge());
             return info;
         }
         else{
@@ -294,12 +307,12 @@ public class Engine {
                 }
                 if(value <= alpha){
                     TOTAL_PRUNES++;
-                    TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.UPPER,bestMove,bestLine);
-                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth);
+                    TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.UPPER,bestMove,bestLine,TT.getCurrentAge());
+                    return new MinimaxInfo(value,bestMove,bestLine,FLAG.UPPER,maxDepth - depth, TT.getCurrentAge());
                 }
             }
-            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth);
-            TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.EXACT,bestMove,bestLine);
+            MinimaxInfo info = new MinimaxInfo(value,bestMove,bestLine,FLAG.EXACT,maxDepth - depth, TT.getCurrentAge());
+            TT.store(board.getZobristKey(),maxDepth - depth,value,FLAG.EXACT,bestMove,bestLine,TT.getCurrentAge());
             return info;
         }
     }

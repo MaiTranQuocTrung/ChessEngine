@@ -6,8 +6,10 @@ import java.util.List;
 public class TranspositionTable {
     private int size;
     private final Entry[] table;
+    private int currentAge;
 
     public TranspositionTable(int mbSize) {
+        this.currentAge = 0;
         // Calculate number of entries based on memory size
         // Entry size ≈ 32 bytes (long + 4 ints + Move object + flag)
         int numEntries = (mbSize * 1024 * 1024) / 32;
@@ -20,18 +22,29 @@ public class TranspositionTable {
         long key;
         int depth;
         int value;
+        int age;
         FLAG flag;
         Move move;
         List<Move> mainLine;
 
-        public Entry(long key, int depth, int value, FLAG flag, Move move, List<Move> mainLine){
+        public Entry(long key, int depth, int value, FLAG flag, Move move, List<Move> mainLine, int age){
             this.key = key;
             this.depth = depth;
             this.value = value;
             this.flag = flag;
             this.move = move;
             this.mainLine = mainLine;
+            this.age = age;
         }
+    }
+
+    // Tracking age of entries
+    public void incrementAge() {
+        currentAge++;
+    }
+
+    public int getCurrentAge() {
+        return currentAge;
     }
 
     //clearing table
@@ -67,12 +80,12 @@ public class TranspositionTable {
     }
 
     //storing data
-    public void store(long key, int depth, int value, FLAG flag, Move move, List<Move> mainLine){
+    public void store(long key, int depth, int value, FLAG flag, Move move, List<Move> mainLine, int age){
         int index = index(key);
         Entry oldEntry = table[index];
 
         if (oldEntry == null || replace(oldEntry,key,depth)){
-            table[index] = new Entry(key,depth,value,flag,move,mainLine);
+            table[index] = new Entry(key,depth,value,flag,move,mainLine,age);
             size++;
         }
     }
