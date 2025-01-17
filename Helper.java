@@ -1,11 +1,7 @@
-import com.github.bhlangonijr.chesslib.Board;
-import com.github.bhlangonijr.chesslib.Piece;
-import com.github.bhlangonijr.chesslib.PieceType;
-import com.github.bhlangonijr.chesslib.Square;
+import com.github.bhlangonijr.chesslib.*;
 import com.github.bhlangonijr.chesslib.move.Move;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 
@@ -34,12 +30,14 @@ public class Helper {
     }
 
     // Sorting by MVV-LVA and also promotion/check
-    public List<Move> sortMoves(Board board, List<Move> legalMoves, TranspositionTable transpositionTable, int maxDepth){
+    public List<Move> sortMoves(Board board, List<Move> legalMoves, TranspositionTable transpositionTable){
         List<MoveInfo> move_scores = new ArrayList<>();
         List<Move> sortedMoves = new ArrayList<>();
 
         for (Move move : legalMoves){
-            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move, transpositionTable, maxDepth));
+            if(!board.doMove(move)){continue;}
+            board.undoMove();
+            MoveInfo moveInfo = new MoveInfo(move,calculateMoveValue(board,move, transpositionTable));
             move_scores.add(moveInfo);
         }
 
@@ -52,49 +50,42 @@ public class Helper {
     }
 
     // Calculating the value of each moves according to MVV-LVA but checking TT moves first + valuing promotions and checks
-    private int calculateMoveValue(Board board, Move move, TranspositionTable transpositionTable, int currDepth){
-        //Transposition value
-        if (transpositionTable.getEntry(board.getZobristKey()) != null){
+    private int calculateMoveValue(Board board, Move move, TranspositionTable transpositionTable){
+        // Transposition Table (PV) Handling
+        if (transpositionTable.containsKey(board.getZobristKey())) {
             TranspositionTable.Entry entry = transpositionTable.getEntry(board.getZobristKey());
-            Move TT_move = entry.move;
-            if (move.equals(TT_move) && entry.depth >= currDepth){
-                // So the move ordering will always evaluate the move from transposition first
-                return 800;
-            }
-            // If the move is from a lesser depth then still look at it, though its less important
-            else if(move.equals(TT_move)){
-                return 500 + entry.depth;
+            List<Move> pvMoves = entry.mainLine;
+            for (int i = 0; i < pvMoves.size(); i++) {
+                Move pvMove = pvMoves.get(i);
+                if (move.equals(pvMove)) {
+                    return 1000 - i + 10 * entry.depth; // Priority for PV moves
+                }
             }
         }
-        // If the move is a promotion, it is likely to be very good
-        else if (move.getPromotion() != Piece.NONE){
-            return 700;
-        }
-        // If the move is a check it is also likely to be decent
-        else if (isCheck(board,move)){
-            return 200;
+
+        // Promotion Handling
+        if (move.getPromotion() != null) {
+            return 900; // Promotions are highly prioritized
         }
 
-        //MVV-LVA here
-        // Origin square and destination square
-        Square origin = move.getFrom();
-        Square destination = move.getTo();
-        // Getting the pieces at origin and destination
-        Piece originPiece = board.getPiece(origin);
-        Piece destinationPiece = board.getPiece(destination);
-        // If its not a capture then we dont have an opinion on it
-        if (!isCapture(board,move)){
-            return 0;
+        // Check Handling
+        if (isCheck(board, move)) {
+            return 300; // Checks are prioritized after PV and promotions
         }
 
-        // Getting the piece type of victim and attacker
-        PieceType origin_piece_type = originPiece.getPieceType();
-        PieceType destination_piece_type = destinationPiece.getPieceType();
+        // MVV-LVA Scoring
+        if (isCapture(board, move)) {
+            Square origin = move.getFrom();
+            Square destination = move.getTo();
+            Piece attacker = board.getPiece(origin);
+            Piece victim = board.getPiece(destination);
+            int attackerValue = evaluation.pieceWorthMg(attacker.getPieceType());
+            int victimValue = evaluation.pieceWorthMg(victim.getPieceType());
+            return victimValue - attackerValue + 50; // Tiebreaker for captures
+        }
 
-        // Getting the values of attacker and victim
-        int origin_piece_value = evaluation.pieceWorthMg(origin_piece_type);
-        int destination_piece_value = evaluation.pieceWorthMg(destination_piece_type);
-        return destination_piece_value - origin_piece_value;
+        // Default for non-captures
+        return 10; // Minimal value for non-captures to keep them in consideration
     }
 
     private static class MoveInfo{

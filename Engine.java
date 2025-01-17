@@ -1,11 +1,9 @@
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.Side;
 import com.github.bhlangonijr.chesslib.move.Move;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 /*
 Search:
@@ -85,7 +83,16 @@ public class Engine {
             //print duration of search
             long timeElapsed = Duration.between(starts,end).toMillis();
             long nps = (long)TOTAL_NODES/(timeElapsed/1000 + 1);
-            System.out.println("//NEWEST VERSION:1.4// Depth:"+ depth+" TIME:" + timeElapsed + " NPS:" + nps + " Eval:" + (float)currChoice.state_value/100 + " Line:" + currChoice.main_line + " Depth(of result): " + currChoice.depth + " Age of move: " + currChoice.age + " TT capacity: " + TT.getCapacity());
+            System.out.printf("VERSION 1.5 | Depth: %-2d | Time: %-5d | NPS: %-7d | Eval: %6.2f | Age: %d/%d | Result Depth: %-2d | Line: %s%n",
+                    depth,
+                    timeElapsed,
+                    nps,
+                    (float)currChoice.state_value/100,
+                    currChoice.age,
+                    currAge,
+                    currChoice.depth,
+                    currChoice.main_line
+            );
             //Avoid taking none completed search
             //If at depth 1 we have a cached depth of 7 and then at depth 2 we re-search. If we run out of time use the cached result at depth 1
             if (currChoice.move != null && bestChoiceDepth <= currChoice.depth ){
@@ -98,9 +105,13 @@ public class Engine {
         return bestChoice;
     }
 
+    // Sorting by MVV-LVA and TT + checks and promotions
     private List<Move> actions(Board board, int maxDepth){
-        // Sorting by MVV-LVA and TT + checks and promotions
-        return boardHelper.sortMoves(board,board.legalMoves(), TT, maxDepth);
+        return boardHelper.sortMoves(board,board.pseudoLegalMoves(), TT);
+    }
+
+    private List<Move> captureMoves(Board board, int maxDepth){
+        return boardHelper.sortMoves(board,board.pseudoLegalCaptures(),TT);
     }
 
     private int utility(Board board){
@@ -135,22 +146,20 @@ public class Engine {
 
             alpha = Math.max(alpha,stand_pat);
 
-            for(Move action : actions(board, maxDepth)){
-                if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
+            for(Move action : captureMoves(board,maxDepth)){
                     board.doMove(action);
-                    int score = QSearch(board,alpha,beta,maxDepth);
+                    int score = QSearch(board, alpha, beta, maxDepth);
                     board.undoMove();
 
-                    if (score > bestScore){
+                    if (score > bestScore) {
                         bestScore = score;
-                        alpha = Math.max(alpha,bestScore);
+                        alpha = Math.max(alpha, bestScore);
                     }
 
-                    if (score >= beta){
+                    if (score >= beta) {
                         TOTAL_PRUNES++;
                         return score;
                     }
-                }
             }
             return bestScore;
         }
@@ -161,22 +170,20 @@ public class Engine {
 
             beta = Math.min(beta,stand_pat);
 
-            for (Move action : actions(board, maxDepth)){
-                if (boardHelper.isCapture(board,action) || boardHelper.isCheck(board,action)){
+            for (Move action : captureMoves(board,maxDepth)){
                     board.doMove(action);
-                    int score = QSearch(board,alpha,beta,maxDepth);
+                    int score = QSearch(board, alpha, beta, maxDepth);
                     board.undoMove();
 
-                    if (score < bestScore){
+                    if (score < bestScore) {
                         bestScore = score;
                         beta = Math.min(beta, bestScore);
                     }
 
-                    if (score <= alpha){
+                    if (score <= alpha) {
                         TOTAL_PRUNES++;
                         return score;
                     }
-                }
             }
             return bestScore;
         }
@@ -208,9 +215,9 @@ public class Engine {
 
         else if (TT.containsKey(board.getZobristKey())) {
             TranspositionTable.Entry entry = TT.getEntry(board.getZobristKey());
-
             int entryAge = entry.age;
-            if (entry.depth >= maxDepth - depth && Math.abs(TT.getCurrentAge() - entryAge) <= 2) {
+
+            if (entry.depth >= maxDepth - depth && Math.abs(TT.getCurrentAge() - entryAge) <= 1) {
                 Side currSide = board.getSideToMove();
 
                 // Extract values from the TT entry
