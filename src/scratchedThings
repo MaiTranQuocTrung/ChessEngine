@@ -1,0 +1,34 @@
+private int mobility(Board board){
+        int whiteMobility = 0;
+        int blackMobility = 0;
+        boolean isEndgame = gamePhase(board)[1] > 10;
+        for (int i = 0; i < Square.values().length - 1; i++){
+            Square square = Square.values()[i];
+            for (Piece piece : Piece.allPieces){
+
+                //Piece information
+                long pieceBitboard = board.getBitboard(piece);
+                if (pieceBitboard == 0){continue;}
+                PieceType pieceType = piece.getPieceType();
+
+                //Define mobility score
+                int mobilityValue = switch (piece.getPieceType()){
+                    case BISHOP -> isEndgame ? 6 : 5;
+                    case QUEEN -> 3 ;
+                    case ROOK -> isEndgame ? 4 : 3;
+                    case KING -> isEndgame ? 0 : -10;
+                    case null, default -> 0;
+                };
+
+                if(board.getPiece(square).getPieceSide() != Side.WHITE &&
+                        Long.bitCount(board.squareAttackedByPieceType(square,Side.WHITE,pieceType)) != 0){
+                    whiteMobility += mobilityValue;
+                }
+                else if (board.getPiece(square).getPieceSide() != Side.BLACK &&
+                        Long.bitCount(board.squareAttackedByPieceType(square,Side.BLACK,pieceType)) != 0){
+                    blackMobility += mobilityValue;
+                }
+            }
+        }
+        return whiteMobility - blackMobility;
+    }
